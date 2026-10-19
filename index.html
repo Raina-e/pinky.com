@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important} body{margin:0;font-size:14px} :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>수능 국어 시계</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 검정 무대 위 중앙에 큰 아날로그 시계, 하단에 80분 타임테이블 스트립 */
+:root {
+  --bg: #0b0b0c;
+  --panel: #151517;
+  --line: #2a2a2e;
+  --fg: #ecebe6;
+  --muted: #8d8c86;
+  --face: #f4f3ee;
+  --ink: #141414;
+  --accent: #e0483a;
+  --s1: #6f8fb8; --s2: #c49a5a; --s3: #8fae7a; --s4: #b07fa8; --s5: #5f9e9a;
+  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1100px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; gap: 18px; padding-block: 18px 24px; box-sizing: border-box; }
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.ttl { display: flex; flex-direction: column; gap: 2px; }
+.ttl small { font-size: 11px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+.ttl b { font-size: 18px; font-weight: 700; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+select, button {
+  font: inherit; font-size: 13px; color: var(--fg); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+}
+button:hover, select:hover { border-color: #46464c; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 700; }
+button.toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+button:disabled, select:disabled { opacity: .45; cursor: default; }
+
+main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.clockbox { width: min(560px, 88vw, 58vh); aspect-ratio: 1; max-width: 100%; position: relative; }
+canvas#clock { width: 100%; height: 100%; display: block; }
+.status { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px 22px; text-align: center; }
+.status .now { font-size: 15px; color: var(--muted); }
+.status .rem { font-family: var(--mono); font-size: 28px; font-variant-numeric: tabular-nums; }
+.status .sec { font-size: 15px; font-weight: 500; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.status .sec i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--muted); font-style: normal; }
+
+.tt { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.tt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tt-head b { font-size: 14px; }
+.tt-head span { font-size: 12px; color: var(--muted); }
+.bar { position: relative; height: 34px; border-radius: 6px; overflow: hidden; display: flex; background: #000; }
+.bar .seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #0b0b0c; white-space: nowrap; overflow: hidden; border-right: 1px solid rgba(0,0,0,.45); opacity: .55; transition: opacity .3s; }
+.bar .seg.on { opacity: 1; }
+.bar.off .seg { opacity: .25; }
+.bar .done { position: absolute; inset: 0 auto 0 0; background: rgba(0,0,0,.55); pointer-events: none; }
+.bar .head { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--accent); box-shadow: 0 0 0 2px rgba(224,72,58,.25); }
+.axis { position: relative; height: 16px; font-family: var(--mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.axis span { position: absolute; transform: translateX(-50%); }
+.axis span.warn { color: var(--accent); }
+.rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.row { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.row.on { border-color: var(--fg); }
+.row .t { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.row .n { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.row .n i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.row .d { font-size: 12px; color: var(--muted); }
+.bells { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); }
+.bells b { color: var(--fg); font-family: var(--mono); font-weight: 500; margin-right: 4px; }
+
+.snd { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.snd-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.snd-info b { font-size: 13px; }
+.snd-info span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.filebtn { font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.filebtn:hover { border-color: #46464c; }
+.toast { position: fixed; left: 50%; top: calc(18px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -20px); opacity: 0; background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 14px; transition: .3s; pointer-events: none; z-index: 20; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.bell { background: var(--accent); color: #fff; }
+@media (max-width: 560px) { .status .rem { font-size: 22px; } .bar .seg { font-size: 10px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div class="ttl"><small>대학수학능력시험 · 1교시</small><b>국어 영역 08:40 – 10:00</b></div>
+    <div class="controls">
+      <select id="mode" aria-label="시작 방식">
+        <option value="now">지금 바로 08:40 시작</option>
+        <option value="pre">5분 전(08:35)부터</option>
+        <option value="real">실제 시각 기준</option>
+      </select>
+      <select id="speed" aria-label="진행 속도">
+        <option value="1">1배속</option>
+        <option value="10">10배속</option>
+        <option value="60">60배속</option>
+      </select>
+      <button id="detail1" class="toggle" aria-pressed="false" title="독서론 → 산문 → 운문 → 화작 → 독서">Detail alarm1</button>
+      <button id="detail2" class="toggle" aria-pressed="false" title="독서론 → 화작 → 문학 → 독서">Detail alarm2</button>
+      <button id="go" class="primary">시험 시작</button>
+      <button id="fs">전체화면</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="clockbox"><canvas id="clock" aria-label="아날로그 시계"></canvas></div>
+    <div class="status">
+      <span class="now" id="label">시작 방식을 고르고 ‘시험 시작’을 누르세요</span>
+      <span class="rem" id="rem">80:00</span>
+      <span class="sec" id="sec"><i></i>대기 중</span>
+    </div>
+  </main>
+
+  <section class="tt" aria-label="타임테이블">
+    <div class="tt-head"><b>타임테이블</b><span id="dstate">Detail alarm 꺼짐 · 종소리만 울림</span></div>
+    <div>
+      <div class="bar off" id="bar"><div class="done" id="done"></div><div class="head" id="head" hidden></div></div>
+      <div class="axis" id="axis"></div>
+    </div>
+    <div class="rows" id="rows"></div>
+    <div class="bells">
+      <span><b>08:40</b>시험 시작 종</span>
+      <span><b>09:50</b>종료 10분 전 종</span>
+      <span><b>10:00</b>시험 종료 종</span>
+    </div>
+    <div class="snd">
+      <div class="snd-info"><b>종소리 미리 듣기</b><span id="sndName">실제 수능 본령 · 종료 10분 전 · 종료령</span></div>
+      <div class="controls">
+        <button data-bell="start">본령 08:40</button>
+        <button data-bell="warn">10분 전 09:50</button>
+        <button data-bell="end">종료령 10:00</button>
+        <button id="sndStop">정지</button>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const START = 8*60+40, END = 10*60; // 분 단위
+const PLANS = {
+  1: [
+    { n: "독서론", m: 3,  c: "--s1" },
+    { n: "산문 (문학)", m: 12, c: "--s2" },
+    { n: "운문 (문학)", m: 12, c: "--s3" },
+    { n: "화법과 작문", m: 15, c: "--s4" },
+    { n: "독서", m: 38, c: "--s5" },
+  ],
+  2: [
+    { n: "독서론", m: 3,  c: "--s1" },
+    { n: "화법과 작문", m: 15, c: "--s4" },
+    { n: "문학", m: 25, c: "--s2" },
+    { n: "독서", m: 37, c: "--s5" },
+  ],
+};
+Object.values(PLANS).forEach(p => { let acc = 0; p.forEach(s => { s.a = acc; acc += s.m; s.b = acc; }); });
+let plan = 1, SECS = PLANS[1];
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = m => { const h = Math.floor(m/60), mm = Math.round(m%60); return String(h).padStart(2,"0")+":"+String(mm).padStart(2,"0"); };
+const short = n => n.split(" ")[0];
+
+// 타임테이블 그리기 (선택된 Detail alarm 기준)
+const bar = document.getElementById("bar"), rows = document.getElementById("rows"), axis = document.getElementById("axis");
+function buildTable(){
+  SECS = PLANS[plan];
+  bar.querySelectorAll(".seg").forEach(e => e.remove()); rows.innerHTML = ""; axis.innerHTML = "";
+  const last = SECS.length - 1;
+  SECS.forEach((s,i) => {
+    const d = document.createElement("div"); d.className = "seg"; d.style.flex = s.m; d.style.background = `var(${s.c})`;
+    d.textContent = s.m >= 10 ? short(s.n) : ""; d.title = `${s.n} ${s.m}분`; bar.insertBefore(d, document.getElementById("done")); s.el = d;
+    const r = document.createElement("div"); r.className = "row";
+    r.innerHTML = `<span class="t">${fmt(START+s.a)} – ${fmt(START+s.b)}</span><span class="n"><i style="background:var(${s.c})"></i>${s.n}</span><span class="d">${i===last ? "나머지 " : ""}${s.m}분${i<last ? " · 끝나면 알람" : ""}</span>`;
+    rows.appendChild(r); s.row = r;
+  });
+  [...SECS.map(s => s.a), 70, 80].forEach(m => { const sp = document.createElement("span"); sp.textContent = fmt(START+m); sp.style.left = (m/80*100)+"%"; sp.dataset.m = m; if (m===70) sp.className="warn"; if (m===0) sp.style.transform="none"; if (m===80) sp.style.transform="translateX(-100%)"; axis.appendChild(sp); });
+  trimAxis();
+}
+// 좁은 화면에서 겹치는 라벨 숨김
+function trimAxis(){ const w = axis.clientWidth; let prev = -1e9;
+  [...axis.children].forEach(sp => { const x = sp.dataset.m/80*w; sp.hidden = x - prev < 46 && +sp.dataset.m !== 80 && +sp.dataset.m !== 70; if (!sp.hidden) prev = x; }); }
+addEventListener("resize", trimAxis);
+buildTable();
+
+// ---- 소리 (Web Audio) ----
+let ac = null;
+function audio(){ if (!ac) ac = new (window.AudioContext||window.webkitAudioContext)(); if (ac.state==="suspended") ac.resume(); return ac; }
+function tone(f, t, dur, vol=0.35, type="sine"){
+  const a = audio(), o = a.createOscillator(), g = a.createGain(), o2 = a.createOscillator(), g2 = a.createGain();
+  o.type = type; o.frequency.value = f; o2.type = "sine"; o2.frequency.value = f*2.01;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t+0.01); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  g2.gain.setValueAtTime(0.0001, t); g2.gain.exponentialRampToValueAtTime(vol*0.25, t+0.01); g2.gain.exponentialRampToValueAtTime(0.0001, t+dur*0.6);
+  o.connect(g).connect(a.destination); o2.connect(g2).connect(a.destination);
+  o.start(t); o2.start(t); o.stop(t+dur+0.05); o2.stop(t+dur+0.05);
+}
+// 학교 차임 (딩-동-댕-동) 2회
+function bellLong(){ const a = audio(); let t = a.currentTime+0.05; const notes=[659.3,523.3,587.3,392.0, 392.0,587.3,659.3,523.3];
+  for (let r=0;r<2;r++){ notes.forEach((f,i)=>{ tone(f, t+i*0.9, 1.6); }); t += notes.length*0.9 + 0.6; } }
+function bellShort(){ const a = audio(); const t = a.currentTime+0.05; [659.3,523.3,587.3,392.0].forEach((f,i)=>tone(f, t+i*0.9, 1.6)); }
+// ---- 실제 수능 종소리 (본령 / 종료 10분 전 / 종료령) ----
+const BELL_FILES = { start: "bells/start.mp3", warn: "bells/warn.mp3", end: "bells/end.mp3" };
+const bellRaw = {}, bellBuf = {}; let bellSrc = null;
+const $sndName = document.getElementById("sndName");
+Object.entries(BELL_FILES).forEach(([k,u]) => { bellRaw[k] = fetch(u).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null); });
+async function ensureBells(){
+  for (const k of Object.keys(BELL_FILES)) {
+    if (bellBuf[k]) continue;
+    try { const arr = await bellRaw[k]; if (arr) bellBuf[k] = await audio().decodeAudioData(arr.slice(0)); } catch(e){}
+  }
+  if (Object.keys(bellBuf).length < 3) $sndName.textContent = "일부 종소리를 불러오지 못해 기본 차임으로 대신 울립니다";
+}
+function stopBell(){ try { bellSrc && bellSrc.stop(); } catch(e){} bellSrc = null; }
+function playBell(k){
+  if (!bellBuf[k]) return false;
+  stopBell(); const a = audio(), s = a.createBufferSource(); s.buffer = bellBuf[k]; s.connect(a.destination); s.start(); bellSrc = s; return true;
+}
+document.querySelectorAll("[data-bell]").forEach(b => b.addEventListener("click", async () => {
+  audio(); await ensureBells(); const k = b.dataset.bell;
+  if (!playBell(k)) (k === "warn" ? bellShort : bellLong)();
+}));
+document.getElementById("sndStop").addEventListener("click", stopBell);
+function beep(){ const a = audio(); const t = a.currentTime+0.05; for (let i=0;i<3;i++) tone(1320, t+i*0.28, 0.18, 0.25, "triangle"); }
+
+// ---- 시간 ----
+let running = false, speed = 1, anchorReal = 0, anchorVirt = 0, last = null;
+const realMin = () => { const d = new Date(); return d.getHours()*60 + d.getMinutes() + d.getSeconds()/60 + d.getMilliseconds()/60000; };
+const vnow = () => running ? anchorVirt + (performance.now()-anchorReal)/60000*speed : realMin();
+
+const EVENTS = [
+  { at: START, kind: "bell", msg: "🔔 시험 시작" , fn: () => playBell("start") || bellLong() },
+  { at: END-10, kind: "bell", msg: "🔔 종료 10분 전", fn: () => playBell("warn") || bellShort() },
+  { at: END, kind: "bell", msg: "🔔 시험 종료", fn: () => playBell("end") || bellLong() },
+];
+const detailEvents = () => SECS.slice(0,-1).map((s,i) => ({ at: START+s.b, kind: "detail", msg: `${short(s.n)} 끝 → ${short(SECS[i+1].n)}`, fn: beep }));
+let detailOn = false;
+const toastEl = document.getElementById("toast"); let toastT;
+function toast(msg, bell){ toastEl.textContent = msg; toastEl.className = "toast show"+(bell?" bell":""); clearTimeout(toastT); toastT = setTimeout(()=>toastEl.className="toast", 4000); }
+
+function tick(){
+  const v = vnow();
+  if (running && last !== null) {
+    [...EVENTS, ...detailEvents()].forEach(e => { if (last < e.at && v >= e.at && (e.kind==="bell" || detailOn)) { e.fn(); toast(e.msg.replace("🔔 ",""), e.kind==="bell"); } });
+  }
+  last = v;
+  draw(v); ui(v);
+}
+
+// ---- 시계 ----
+const cv = document.getElementById("clock"), cx = cv.getContext("2d");
+function draw(v){
+  const dpr = devicePixelRatio||1, S = cv.clientWidth; if (!S) return;
+  if (cv.width !== Math.round(S*dpr)) { cv.width = cv.height = Math.round(S*dpr); }
+  cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,S,S);
+  const R = S/2, c = R;
+  // 테두리와 면
+  cx.beginPath(); cx.arc(c,c,R-2,0,Math.PI*2); cx.fillStyle = "#2b2b2f"; cx.fill();
+  cx.beginPath(); cx.arc(c,c,R*0.955,0,Math.PI*2); cx.fillStyle = css("--face"); cx.fill();
+  // 남은 시험시간 부채꼴 (시험 중일 때)
+  if (v >= START && v < END) {
+    const toAng = m => ((m%60)/60)*Math.PI*2 - Math.PI/2;
+    const from = toAng(v), rem = END - v;
+    cx.beginPath(); cx.moveTo(c,c); cx.arc(c,c,R*0.62, from, from + rem/60*Math.PI*2); cx.closePath();
+    cx.fillStyle = rem <= 10 ? "rgba(224,72,58,.16)" : "rgba(20,20,20,.06)"; cx.fill();
+  }
+  // 눈금
+  for (let i=0;i<60;i++){
+    const a = i/60*Math.PI*2, big = i%5===0, r1 = R*0.93, r2 = big ? R*0.84 : R*0.895;
+    cx.beginPath(); cx.moveTo(c+Math.sin(a)*r1, c-Math.cos(a)*r1); cx.lineTo(c+Math.sin(a)*r2, c-Math.cos(a)*r2);
+    cx.strokeStyle = css("--ink"); cx.lineWidth = big ? R*0.022 : R*0.008; cx.lineCap = "butt"; cx.stroke();
+  }
+  // 숫자
+  cx.fillStyle = css("--ink"); cx.textAlign = "center"; cx.textBaseline = "middle";
+  cx.font = `500 ${R*0.15}px "IBM Plex Sans KR", system-ui, sans-serif`;
+  for (let h=1;h<=12;h++){ const a = h/12*Math.PI*2; cx.fillText(h, c+Math.sin(a)*R*0.7, c-Math.cos(a)*R*0.7 + R*0.005); }
+  cx.font = `500 ${R*0.045}px "IBM Plex Sans KR", system-ui, sans-serif`; cx.fillStyle = "#6c6b66";
+  cx.fillText("수능 1교시 국어", c, c+R*0.33);
+  // 바늘
+  const totalSec = v*60, sec = totalSec%60, min = (v%60), hr = (v/60)%12;
+  hand(hr/12, R*0.46, R*0.045, css("--ink"), R*0.08);
+  hand(min/60, R*0.72, R*0.03, css("--ink"), R*0.1);
+  hand(sec/60, R*0.8, R*0.011, css("--accent"), R*0.18);
+  cx.beginPath(); cx.arc(c,c,R*0.035,0,Math.PI*2); cx.fillStyle = css("--accent"); cx.fill();
+  cx.beginPath(); cx.arc(c,c,R*0.013,0,Math.PI*2); cx.fillStyle = css("--face"); cx.fill();
+  function hand(frac, len, w, col, tail){ const a = frac*Math.PI*2; cx.beginPath();
+    cx.moveTo(c-Math.sin(a)*tail, c+Math.cos(a)*tail); cx.lineTo(c+Math.sin(a)*len, c-Math.cos(a)*len);
+    cx.strokeStyle = col; cx.lineWidth = w; cx.lineCap = "round"; cx.stroke(); }
+}
+
+// ---- 상태 표시 ----
+const $label = document.getElementById("label"), $rem = document.getElementById("rem"), $sec = document.getElementById("sec");
+const $done = document.getElementById("done"), $head = document.getElementById("head");
+const mmss = m => { const s = Math.max(0, Math.ceil(m*60)); return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); };
+function ui(v){
+  const d = new Date(0,0,0,0,0, Math.floor(v*60));
+  const clock = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+  const p = v - START; let cur = null;
+  if (!running) { $label.textContent = `현재 ${clock} · ‘시험 시작’을 누르면 종이 울립니다`; $rem.textContent = "80:00"; }
+  else if (p < 0) { $label.textContent = `${clock} · 시험 시작까지`; $rem.textContent = mmss(-p); }
+  else if (v < END) { $label.textContent = `${clock} · 남은 시간`; $rem.textContent = mmss(END - v); cur = SECS.find(s => p >= s.a && p < s.b); }
+  else { $label.textContent = `${clock} · 시험이 끝났습니다`; $rem.textContent = "00:00"; }
+  $sec.innerHTML = cur ? `<i style="background:var(${cur.c})"></i>${detailOn ? "지금: " : "권장: "}${cur.n}` : `<i></i>${running && p>=80 ? "종료" : running ? "시작 전" : "대기 중"}`;
+  SECS.forEach(s => { const on = s===cur; s.el.classList.toggle("on", on); s.row.classList.toggle("on", on); });
+  const f = Math.min(1, Math.max(0, p/80));
+  $done.style.width = (running ? f*100 : 0)+"%";
+  $head.hidden = !(running && p>=0 && p<=80); $head.style.left = `calc(${f*100}% - 1px)`;
+  bar.classList.toggle("off", !detailOn && !running);
+}
+
+// ---- 컨트롤 ----
+const $go = document.getElementById("go"), $mode = document.getElementById("mode"), $speed = document.getElementById("speed");
+const $d1 = document.getElementById("detail1"), $d2 = document.getElementById("detail2");
+let wake = null;
+$go.addEventListener("click", async () => {
+  audio();
+  if (running) { stopBell(); running = false; last = null; $go.textContent = "시험 시작"; $mode.disabled = $speed.disabled = false; try { wake && wake.release(); } catch(e){} return; }
+  await ensureBells();
+  const mode = $mode.value; speed = mode==="real" ? 1 : +$speed.value;
+  anchorReal = performance.now();
+  anchorVirt = mode==="now" ? START - 0.5/60 : mode==="pre" ? START-5 : realMin();
+  running = true; last = anchorVirt; $go.textContent = "초기화"; $mode.disabled = $speed.disabled = true;
+  try { wake = await navigator.wakeLock.request("screen"); } catch(e){}
+});
+$mode.addEventListener("change", () => { $speed.disabled = $mode.value==="real"; if ($mode.value==="real") $speed.value = "1"; });
+function setDetail(n){
+  const turnOff = detailOn && plan === n;
+  detailOn = !turnOff; plan = n;
+  $d1.setAttribute("aria-pressed", detailOn && plan===1); $d2.setAttribute("aria-pressed", detailOn && plan===2);
+  buildTable();
+  document.getElementById("dstate").textContent = detailOn
+    ? `Detail alarm${plan} 켜짐 · ${SECS.map(s=>short(s.n)).join(" → ")} · 구간이 끝날 때마다 삐-삐-삐`
+    : "Detail alarm 꺼짐 · 종소리만 울림";
+  if (detailOn) { audio(); beep(); }
+  tick();
+}
+$d1.addEventListener("click", () => setDetail(1));
+$d2.addEventListener("click", () => setDetail(2));
+document.getElementById("fs").addEventListener("click", () => {
+  try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(()=>{}); } catch(e){}
+});
+document.addEventListener("visibilitychange", async () => { if (running && document.visibilityState==="visible") { try { wake = await navigator.wakeLock.request("screen"); } catch(e){} } });
+
+setInterval(tick, 200); tick();
+if (document.fonts) document.fonts.ready.then(tick);
+</script>
+
+</body>
+</html>
